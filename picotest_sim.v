@@ -1,6 +1,8 @@
-module picotest_tbx (
-    input  pin_clk,
-    output pin_led,
+
+module picotest_sim (
+    input clk,
+    input rst,
+    output [3:0] led
 );
 
 localparam WB_DATA_WIDTH = 32;
@@ -8,16 +10,12 @@ localparam WB_SEL_WIDTH = (WB_DATA_WIDTH / 8);
 localparam WB_ADDR_WIDTH = 32 - $clog2(WB_SEL_WIDTH);
 localparam WB_MUX_WIDTH = 4;
 
-// Clock Generation.
-wire clk;
-wire clk_locked;
-pll pll48( .clock_in(pin_clk), .clock_out(clk), .locked( clk_locked ) );
-
 // Reset Generation.
 wire wb_reset;
 reg [3:0] por_delay = 4'b1111;
 always @(posedge clk) begin
-    if (clk_locked && por_delay != 0) por_delay <= por_delay - 1;
+    if (rst) por_delay <= 4'b1111;
+    if (por_delay != 0) por_delay <= por_delay - 1;
 end
 assign wb_reset = (por_delay != 0);
 
@@ -31,11 +29,11 @@ wire [WB_SEL_WIDTH-1:0]  wb_ledpwm_sel;
 wire                     wb_ledpwm_ack;
 wire                     wb_ledpwm_cyc;
 wire                     wb_ledpwm_stb;
-wire                     wb_ledpwm_output;
+wire [3:0]               wb_ledpwm_output;
 wbledpwm#(
     .AW(WB_ADDR_WIDTH),
     .DW(WB_DATA_WIDTH),
-    .NLEDS(1)
+    .NLEDS(4)
 ) vexledpwm(
     .wb_clk_i(clk),
     .wb_reset_i(wb_reset),
@@ -50,7 +48,7 @@ wbledpwm#(
 
     .leds(wb_ledpwm_output)
 );
-assign pin_led = ~wb_ledpwm_output;
+assign led = ~wb_ledpwm_output;
 
 // Instantiate the boot ROM.
 wire [WB_ADDR_WIDTH-1:0] wb_bootrom_addr;

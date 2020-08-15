@@ -1,6 +1,6 @@
-module picotest_tbx (
-    input  pin_clk,
-    output pin_led,
+module picotest_lbone (
+    input refclk,
+    output [3:0] led
 );
 
 localparam WB_DATA_WIDTH = 32;
@@ -11,7 +11,7 @@ localparam WB_MUX_WIDTH = 4;
 // Clock Generation.
 wire clk;
 wire clk_locked;
-pll pll48( .clock_in(pin_clk), .clock_out(clk), .locked( clk_locked ) );
+pll pll48( .clkin(refclk), .clkout0(clk), .locked(clk_locked) );
 
 // Reset Generation.
 wire wb_reset;
@@ -31,11 +31,11 @@ wire [WB_SEL_WIDTH-1:0]  wb_ledpwm_sel;
 wire                     wb_ledpwm_ack;
 wire                     wb_ledpwm_cyc;
 wire                     wb_ledpwm_stb;
-wire                     wb_ledpwm_output;
+wire [3:0]               wb_ledpwm_output;
 wbledpwm#(
     .AW(WB_ADDR_WIDTH),
     .DW(WB_DATA_WIDTH),
-    .NLEDS(1)
+    .NLEDS(4)
 ) vexledpwm(
     .wb_clk_i(clk),
     .wb_reset_i(wb_reset),
@@ -50,7 +50,7 @@ wbledpwm#(
 
     .leds(wb_ledpwm_output)
 );
-assign pin_led = ~wb_ledpwm_output;
+assign led = ~wb_ledpwm_output;
 
 // Instantiate the boot ROM.
 wire [WB_ADDR_WIDTH-1:0] wb_bootrom_addr;

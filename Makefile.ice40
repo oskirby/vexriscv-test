@@ -3,9 +3,9 @@
 ##
 CROSS_COMPILE ?= riscv64-unknown-elf-
 
-BASENAME = vextest
-#BASENAME = picotest
-PROJTOP = $(BASENAME)_lbone
+#BASENAME = vextest
+BASENAME = picotest
+PROJTOP = $(BASENAME)_tbx
 SIMTOP = $(BASENAME)_sim
 
 SOURCES = \
@@ -19,35 +19,28 @@ SOURCES = \
 	wbsram.v \
 	bootrom.v
 
-SRC = $(PROJTOP).v logicbone_pll.v $(SOURCES)
+SRC = $(PROJTOP).v pll.v $(SOURCES)
 
-PIN_DEF = logicbone-rev0.lpf
+PIN_DEF = pins.pcf
 
-DEVICE = --um5g-85k
-PACKAGE = CABGA381
+DEVICE = lp8k
+PACKAGE = cm81
+CLK_MHZ = 48
 
 all: $(PROJTOP).bit $(PROJTOP).hex $(PROJTOP).svf
 bootloader: $(PROJTOP).bit
 
-synth: $(PROJTOP).json
+pll.v:
+	icepll -i 16 -o $(CLK_MHZ) -m -f $@
 
 $(PROJTOP).json: $(SRC) firmware.mem
-	yosys -q -p 'synth_ecp5 -top $(PROJTOP) -json $@' $(filter %.v,$^)
+	yosys -q -p 'synth_ice40 -top $(PROJTOP) -json $@' $(filter %.v,$^)
 
-%_out.config: %.json
-	nextpnr-ecp5 --json $< --textcfg $@ $(DEVICE) --package $(PACKAGE) --lpf $(PIN_DEF)
+%.asc: $(PIN_DEF) %.json 
+	nextpnr-ice40 --$(DEVICE) --opt-timing --package $(PACKAGE) --pcf $(PIN_DEF) --json $*.json --asc $@
 
-%.svf: %_out.config
-	ecppack --svf $@ $<
-
-%.bit: %_out.config
-	ecppack --compress --spimode qspi $< $@
-
-%.hex: %.bit
-	hexdump $^ > $@
-
-dfu: $(PROJTOP).bit
-	dfu-util -d 1d50:615d -a0 -D $<
+%.bit: %.asc
+	icepack $< $@
 
 # Firmware Build Rules.
 firmware.elf: firmware.s

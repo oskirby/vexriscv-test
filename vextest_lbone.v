@@ -1,25 +1,27 @@
 
 module vextest_lbone (
-    input  refclk,
+    input refclk,
     output [3:0] led
 );
 
 localparam WB_DATA_WIDTH = 32;
 localparam WB_SEL_WIDTH = (WB_DATA_WIDTH / 8);
 localparam WB_ADDR_WIDTH = 32 - $clog2(WB_SEL_WIDTH);
+localparam WB_MUX_WIDTH = 4;
 
 // Clock Generation.
 wire clk;
 wire clk_locked;
 pll pll48( .clkin(refclk), .clkout0(clk), .locked(clk_locked) );
 
-// Reset Generation
-wire rst;
-reg [7:0] rst_delay = 8'hFF;
+// Reset Generation.
+wire wb_reset;
+reg [3:0] por_delay = 4'b1111;
 always @(posedge clk) begin
-    if (clk_locked && rst_delay) rst_delay <= rst_delay - 1;
+    if (clk_locked && por_delay != 0) por_delay <= por_delay - 1;
 end
-assign rst = (rst_delay != 0);
+assign wb_reset = (por_delay != 0);
+
 
 // Wishbone connected LED driver.
 wire [WB_ADDR_WIDTH-1:0] wb_ledpwm_addr;
@@ -37,7 +39,7 @@ wbledpwm#(
     .NLEDS(4)
 ) vexledpwm(
     .wb_clk_i(clk),
-    .wb_reset_i(rst),
+    .wb_reset_i(wb_reset),
     .wb_adr_i(wb_ledpwm_addr),
     .wb_dat_i(wb_ledpwm_wdata),
     .wb_dat_o(wb_ledpwm_rdata),
@@ -65,7 +67,7 @@ bootrom#(
     .DW(WB_DATA_WIDTH)
 ) vexbootrom(
     .wb_clk_i(clk),
-    .wb_reset_i(rst),
+    .wb_reset_i(wb_reset),
     .wb_adr_i(wb_bootrom_addr),
     .wb_dat_i(wb_bootrom_wdata),
     .wb_dat_o(wb_bootrom_rdata),
@@ -90,7 +92,7 @@ wbsram#(
     .DW(WB_DATA_WIDTH)
 ) vexsram(
     .wb_clk_i(clk),
-    .wb_reset_i(rst),
+    .wb_reset_i(wb_reset),
     .wb_adr_i(wb_sram_addr),
     .wb_dat_i(wb_sram_wdata),
     .wb_dat_o(wb_sram_rdata),
