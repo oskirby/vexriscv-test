@@ -18,14 +18,13 @@ module bootrom#(
 
 localparam SIZE_BITS = $clog2(SIZE);
 
+wire stb_valid;
+assign stb_valid = wb_cyc_i && wb_stb_i;
+
 reg [DW-1:0] memory[SIZE-1:0];
 always @(posedge wb_clk_i) begin
-    if (wb_cyc_i && wb_stb_i && ~wb_we_i) begin
-        wb_dat_o <= memory[wb_adr_i[SIZE_BITS-1:0]];
-        wb_ack_o <= 1'b1;
-    end else begin
-        wb_ack_o <= 1'b0;
-    end
+    wb_ack_o <= stb_valid;
+    if (stb_valid && ~wb_we_i) wb_dat_o <= memory[wb_adr_i[SIZE_BITS-1:0]];
 end
 
 initial begin

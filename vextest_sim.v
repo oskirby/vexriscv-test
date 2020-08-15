@@ -6,9 +6,9 @@ module vextest_sim(
     output [3:0] led
 );
 
-localparam WB_ADDR_WIDTH = 32;
 localparam WB_DATA_WIDTH = 32;
 localparam WB_SEL_WIDTH = (WB_DATA_WIDTH / 8);
+localparam WB_ADDR_WIDTH = 32 - $clog2(WB_SEL_WIDTH);
 
 // Wishbone connected LED driver.
 wire [WB_ADDR_WIDTH-1:0] wb_ledpwm_addr;
@@ -90,28 +90,31 @@ wbsram#(
     .wb_stb_i(wb_sram_stb)
 );
 
-// Instruction Bus wishbone signals.
-wire [WB_ADDR_WIDTH-1:0] wb_ibus_addr;
-wire [WB_DATA_WIDTH-1:0] wb_ibus_rdata;
-wire [WB_DATA_WIDTH-1:0] wb_ibus_wdata;
-wire                     wb_ibus_we;
-wire [WB_SEL_WIDTH-1:0]  wb_ibus_sel;
-wire                     wb_ibus_ack;
-wire                     wb_ibus_cyc;
-wire                     wb_ibus_stb;
-wire                     wb_ibus_err;
+// Instruction Bus wishbone signals (classic)
+wire [WB_ADDR_WIDTH-1:0] wbc_ibus_addr;
+wire [WB_DATA_WIDTH-1:0] wbc_ibus_rdata;
+wire [WB_DATA_WIDTH-1:0] wbc_ibus_wdata;
+wire                     wbc_ibus_we;
+wire [WB_SEL_WIDTH-1:0]  wbc_ibus_sel;
+wire                     wbc_ibus_ack;
+wire                     wbc_ibus_cyc;
+wire                     wbc_ibus_stb;
+wire                     wbc_ibus_err;
+wire [1:0]               wbc_ibus_bte;
+wire [2:0]               wbc_ibus_cti;
 
-// Data Bus wishbone signals.
-wire [WB_ADDR_WIDTH-1:0] wb_dbus_addr;
-wire [WB_DATA_WIDTH-1:0] wb_dbus_rdata;
-wire [WB_DATA_WIDTH-1:0] wb_dbus_wdata;
-wire                     wb_dbus_we;
-wire [WB_SEL_WIDTH-1:0]  wb_dbus_sel;
-wire                     wb_dbus_ack;
-wire                     wb_dbus_cyc;
-wire                     wb_dbus_stb;
-wire                     wb_dbus_err;
-
+// Data Bus wishbone signals (classic)
+wire [WB_ADDR_WIDTH-1:0] wbc_dbus_addr;
+wire [WB_DATA_WIDTH-1:0] wbc_dbus_rdata;
+wire [WB_DATA_WIDTH-1:0] wbc_dbus_wdata;
+wire                     wbc_dbus_we;
+wire [WB_SEL_WIDTH-1:0]  wbc_dbus_sel;
+wire                     wbc_dbus_ack;
+wire                     wbc_dbus_cyc;
+wire                     wbc_dbus_stb;
+wire                     wbc_dbus_err;
+wire [1:0]               wbc_dbus_bte;
+wire [2:0]               wbc_dbus_cti;
 
 // Instantiate the Main CPU
 VexRiscv vexcore(
@@ -121,38 +124,117 @@ VexRiscv vexcore(
     .externalInterruptArray(32'h00000000),
 
     // Instruction Bus.
-    .iBusWishbone_CYC(wb_ibus_cyc),
-    .iBusWishbone_STB(wb_ibus_stb),
-    .iBusWishbone_ACK(wb_ibus_ack),
-    .iBusWishbone_WE(wb_ibus_we),
-    .iBusWishbone_ADR(wb_ibus_addr[29:0]),
-    .iBusWishbone_DAT_MISO(wb_ibus_rdata),
-    .iBusWishbone_DAT_MOSI(wb_ibus_wdata),
-    .iBusWishbone_SEL(wb_ibus_sel),
-    .iBusWishbone_ERR(wb_ibus_err),
-    // Bursts are not supported.
-    //.iBusWishbone_BTE(????),
-    //.iBusWishbone_CTI(????), 
+    .iBusWishbone_CYC(wbc_ibus_cyc),
+    .iBusWishbone_STB(wbc_ibus_stb),
+    .iBusWishbone_ACK(wbc_ibus_ack),
+    .iBusWishbone_WE(wbc_ibus_we),
+    .iBusWishbone_ADR(wbc_ibus_addr),
+    .iBusWishbone_DAT_MISO(wbc_ibus_rdata),
+    .iBusWishbone_DAT_MOSI(wbc_ibus_wdata),
+    .iBusWishbone_SEL(wbc_ibus_sel),
+    .iBusWishbone_ERR(wbc_ibus_err),
+    .iBusWishbone_BTE(wbc_ibus_bte),
+    .iBusWishbone_CTI(wbc_ibus_cti), 
 
     // Data Bus.
-    .dBusWishbone_CYC(wb_dbus_cyc),
-    .dBusWishbone_STB(wb_dbus_stb),
-    .dBusWishbone_ACK(wb_dbus_ack),
-    .dBusWishbone_WE(wb_dbus_we),
-    .dBusWishbone_ADR(wb_dbus_addr[29:0]),
-    .dBusWishbone_DAT_MISO(wb_dbus_rdata),
-    .dBusWishbone_DAT_MOSI(wb_dbus_wdata),
-    .dBusWishbone_SEL(wb_dbus_sel),
-    .dBusWishbone_ERR(wb_dbus_err),
-    // Bursts are not supported.
-    //.dBusWishbone_BTE(????),
-    //.dBusWishbone_CTI(????),
+    .dBusWishbone_CYC(wbc_dbus_cyc),
+    .dBusWishbone_STB(wbc_dbus_stb),
+    .dBusWishbone_ACK(wbc_dbus_ack),
+    .dBusWishbone_WE(wbc_dbus_we),
+    .dBusWishbone_ADR(wbc_dbus_addr),
+    .dBusWishbone_DAT_MISO(wbc_dbus_rdata),
+    .dBusWishbone_DAT_MOSI(wbc_dbus_wdata),
+    .dBusWishbone_SEL(wbc_dbus_sel),
+    .dBusWishbone_ERR(wbc_dbus_err),
+    .dBusWishbone_BTE(wbc_dbus_bte),
+    .dBusWishbone_CTI(wbc_dbus_cti),
 
     .clk(clk),
     .reset(rst)
 );
-assign wb_ibus_addr[WB_ADDR_WIDTH-1:30] = 0;
-assign wb_dbus_addr[WB_ADDR_WIDTH-1:30] = 0;
+
+// Convert the VexRiscV from classic to pipelined wishbone.
+wire [WB_ADDR_WIDTH-1:0] wb_ibus_addr;
+wire [WB_DATA_WIDTH-1:0] wb_ibus_rdata;
+wire [WB_DATA_WIDTH-1:0] wb_ibus_wdata;
+wire                     wb_ibus_we;
+wire [WB_SEL_WIDTH-1:0]  wb_ibus_sel;
+wire                     wb_ibus_ack;
+wire                     wb_ibus_cyc;
+wire                     wb_ibus_stb;
+wire                     wb_ibus_err;
+wire                     wb_ibus_stall;
+wbc2pipeline#(
+    .AW(WB_ADDR_WIDTH),
+    .DW(WB_DATA_WIDTH)
+) vexibus_pipelined(
+    .i_clk(clk),
+    .i_reset(rst),
+
+    .i_mcyc(wbc_ibus_cyc),
+    .i_mstb(wbc_ibus_stb),
+    .i_mwe(wbc_ibus_we),
+    .i_maddr(wbc_ibus_addr),
+    .i_mdata(wbc_ibus_wdata),
+    .i_msel(wbc_ibus_sel),
+    .o_mack(wbc_ibus_ack),
+    .o_mdata(wbc_ibus_rdata),
+    .o_merr(wbc_ibus_err),
+    .i_mcti(wbc_ibus_cti),
+    .i_mbte(wbc_ibus_bte),
+
+    .o_scyc(wb_ibus_cyc),
+    .o_sstb(wb_ibus_stb),
+    .o_swe(wb_ibus_we),
+    .o_saddr(wb_ibus_addr),
+    .o_sdata(wb_ibus_wdata),
+    .o_ssel(wb_ibus_sel),
+    .i_sstall(wb_ibus_stall),
+    .i_sack(wb_ibus_ack),
+    .i_sdata(wb_ibus_rdata),
+    .i_serr(wb_ibus_err)
+);
+
+wire [WB_ADDR_WIDTH-1:0] wb_dbus_addr;
+wire [WB_DATA_WIDTH-1:0] wb_dbus_rdata;
+wire [WB_DATA_WIDTH-1:0] wb_dbus_wdata;
+wire                     wb_dbus_we;
+wire [WB_SEL_WIDTH-1:0]  wb_dbus_sel;
+wire                     wb_dbus_ack;
+wire                     wb_dbus_cyc;
+wire                     wb_dbus_stb;
+wire                     wb_dbus_err;
+wire                     wb_dbus_stall;
+wbc2pipeline#(
+    .AW(WB_ADDR_WIDTH),
+    .DW(WB_DATA_WIDTH)
+) vexdbus_pipelined(
+    .i_clk(clk),
+    .i_reset(rst),
+
+    .i_mcyc(wbc_dbus_cyc),
+    .i_mstb(wbc_dbus_stb),
+    .i_mwe(wbc_dbus_we),
+    .i_maddr(wbc_dbus_addr),
+    .i_mdata(wbc_dbus_wdata),
+    .i_msel(wbc_dbus_sel),
+    .o_mack(wbc_dbus_ack),
+    .o_mdata(wbc_dbus_rdata),
+    .o_merr(wbc_dbus_err),
+    .i_mcti(wbc_dbus_cti),
+    .i_mbte(wbc_dbus_bte),
+
+    .o_scyc(wb_dbus_cyc),
+    .o_sstb(wb_dbus_stb),
+    .o_swe(wb_dbus_we),
+    .o_saddr(wb_dbus_addr),
+    .o_sdata(wb_dbus_wdata),
+    .o_ssel(wb_dbus_sel),
+    .i_sstall(wb_dbus_stall),
+    .i_sack(wb_dbus_ack),
+    .i_sdata(wb_dbus_rdata),
+    .i_serr(wb_dbus_err)
+);
 
 // Create the Wishbone crossbar.
 wbxbar#(
@@ -181,7 +263,7 @@ wbxbar#(
     .i_maddr ({wb_ibus_addr,  wb_dbus_addr}),
     .i_mdata ({wb_ibus_wdata, wb_dbus_wdata}),
     .i_msel  ({wb_ibus_sel,   wb_dbus_sel}),
-    //.o_mstall(????)
+    .o_mstall({wb_ibus_stall, wb_dbus_stall}),
     .o_mack  ({wb_ibus_ack,   wb_dbus_ack}),
     .o_merr  ({wb_ibus_err,   wb_dbus_err}),
     .o_mdata ({wb_ibus_rdata, wb_dbus_rdata}),

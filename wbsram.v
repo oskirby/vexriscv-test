@@ -24,14 +24,13 @@ assign sram_addr = wb_adr_i[SIZE_BITS-1:0];
 ///////////////////////////////////////
 // The SRAM memory block.
 ///////////////////////////////////////
-reg          stb_prev = 0;
-wire         stb_edge = ~stb_prev && wb_cyc_i && wb_stb_i;
-always @(posedge wb_clk_i) stb_prev <= wb_cyc_i && wb_stb_i;
+wire stb_valid;
+assign stb_valid = wb_cyc_i && wb_stb_i;
 
 reg [DW-1:0] memory[SIZE-1:0];
 always @(posedge wb_clk_i) begin
-    wb_ack_o <= stb_edge;
-    if (stb_edge && ~wb_we_i) wb_dat_o <= memory[wb_adr_i[SIZE_BITS-1:0]];
+    wb_ack_o <= stb_valid;
+    if (stb_valid && ~wb_we_i) wb_dat_o <= memory[wb_adr_i[SIZE_BITS-1:0]];
 end
 
 // Handle writes, with byte-masking.
@@ -39,7 +38,7 @@ genvar i;
 generate
     for (i = 0; i < DW; i = i + 8) begin
         always @(posedge wb_clk_i) begin
-            if (stb_edge && wb_we_i && wb_sel_i[i / 8]) begin
+            if (stb_valid && wb_we_i && wb_sel_i[i / 8]) begin
                 memory[sram_addr][i+7:i] <= wb_dat_i[i+7:i];
             end
         end

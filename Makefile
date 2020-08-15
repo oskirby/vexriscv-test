@@ -12,15 +12,13 @@ SOURCES = \
 	lib/addrdecode.v \
 	lib/picorv32.v \
 	lib/skidbuffer.v \
+	lib/wbc2pipeline.v \
 	lib/wbxbar.v \
 	wbleds.v \
 	wbsram.v \
 	bootrom.v
 
-# Extra dependencies for hardware only.
-$(PROJTOP).json: logicbone_pll.v
-
-SRC = $(PROJTOP).v $(SOURCES)
+SRC = $(PROJTOP).v logicbone_pll.v $(SOURCES)
 
 PIN_DEF = logicbone-rev0.lpf
 
@@ -47,6 +45,10 @@ $(PROJTOP).json: $(SRC) firmware.mem
 %.hex: %.bit
 	hexdump $^ > $@
 
+dfu: $(PROJTOP).bit
+	dfu-util -d 1d50:615d -a0 -D $<
+
+# Firmware Build Rules.
 firmware.elf: firmware.s
 	$(CROSS_COMPILE)gcc $(CFLAGS) -march=rv32i -mabi=ilp32 -Wl,-Bstatic,-T,firmware.lds -nostdlib -o $@ $^
 
@@ -56,19 +58,19 @@ firmware.bin: firmware.elf
 firmware.mem: firmware.bin
 	hexdump  -e '"" 1/4 "%08x\n"' $^ > $@
 
-dfu: $(PROJTOP).bit
-	dfu-util -d 1d50:615d -a0 -D $<
-
-# Simulation Rules.
+# Simulation Build Rules.
 $(SIMTOP): $(SIMTOP).v $(SOURCES) firmware.mem
 	verilator --trace --top-module $(SIMTOP) -cc $(filter %.v,$^) -Wno-fatal --exe $(SIMTOP).cpp
 	make -C obj_dir -f V$(SIMTOP).mk
 
 sim: $(SIMTOP)
 
+# Cleanup Rules
 clean:
 	rm -f $(PROJTOP).json $(PROJTOP).svf $(PROJTOP).bit $(PROJTOP)_out.config $(PROJTOP).hex
-	rm -f firmware.elf firmware.bin
+	rm -f firmware.elf firmware.bin firmware.mem
+	rm -f $(SIMTOP) $(SIMTOP).vcd
+	rm -rf obj_dir/
 
 .SECONDARY:
 .PHONY: all bitstream synth dfu clean gui

@@ -39,13 +39,13 @@ addi x31, zero, 0
 li a0, 0x20000000
 addi a1, zero, 255
 sw a1, 0(a0) # Write First LED
-srli a1, a1, 1
+srli a1, a1, 2
 sw a1, 4(a0) # Write Second LED
-srli a1, a1, 1
+srli a1, a1, 2
 sw a1, 8(a0) # Write Third LED
-srli a1, a1, 1
-sw a1, 12(a1) # Write Third LED
+srli a1, a1, 2
+sw a1, 12(a0) # Write Final LED
 
 # Loop indefinitely.
 loop_forever:
-beq zero, zero, loop_forever
+j loop_forever
