@@ -17,13 +17,12 @@ SECTIONS
         *(.srodata*)        /* .rodata sections (constants, strings, etc) */
         . = ALIGN(4);
         _etext = .;         /* Mark the end of the code section */
-        _sidata = _etext;   /* Mark the start of initialized .data */
+        _sreldata = _etext;   /* Mark the start of initialized .data */
     } > ROM
 
     /* Store initialized .data in ROM to be relocated. */
-    .data : AT( _sidata ) {
+    .data : AT( _sreldata ) {
         _sdata = .;         /* Mark the start of initialized data */
-        _ram_start = .;
         . = ALIGN(4);
         *(.data)            /* .data sections (static and global variables) */
         *(.data*)           /* .data sections (static and global variables) */
@@ -51,4 +50,7 @@ SECTIONS
         . = ALIGN(4);
         _heap_start = .;    /* Mark the start of free memory */
     } > SRAM
+
+    /* Initial stack should start at the end of SRAM. */
+    _stack_start = ORIGIN(SRAM) + LENGTH(SRAM) - 4;
 }

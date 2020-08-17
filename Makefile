@@ -1,8 +1,6 @@
 ##
 ## Make and program TinyFPGA BX
 ##
-CROSS_COMPILE ?= riscv64-unknown-elf-
-
 BASENAME = vextest
 #BASENAME = picotest
 PROJTOP = $(BASENAME)_lbone
@@ -50,13 +48,11 @@ dfu: $(PROJTOP).bit
 	dfu-util -d 1d50:615d -a0 -D $<
 
 # Firmware Build Rules.
-firmware.elf: firmware.s
-	$(CROSS_COMPILE)gcc $(CFLAGS) -march=rv32i -mabi=ilp32 -Wl,-Bstatic,-T,firmware.lds -nostdlib -o $@ $^
+.PHONY: firmware/firmware.bin
+firmware/firmware.bin:
+	make -C firmware firmware.bin
 
-firmware.bin: firmware.elf
-	$(CROSS_COMPILE)objcopy -O binary $^ $@
-
-firmware.mem: firmware.bin
+firmware.mem: firmware/firmware.bin
 	hexdump  -e '"" 1/4 "%08x\n"' $^ > $@
 
 # Simulation Build Rules.
@@ -68,8 +64,9 @@ sim: $(SIMTOP)
 
 # Cleanup Rules
 clean:
+	make -C firmware clean
 	rm -f $(PROJTOP).json $(PROJTOP).svf $(PROJTOP).bit $(PROJTOP)_out.config $(PROJTOP).hex
-	rm -f firmware.elf firmware.bin firmware.mem
+	rm -f firmware.mem
 	rm -f $(SIMTOP) $(SIMTOP).vcd
 	rm -rf obj_dir/
 
