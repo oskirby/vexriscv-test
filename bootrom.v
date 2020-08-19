@@ -19,7 +19,7 @@ module bootrom#(
 localparam SIZE_BITS = $clog2(SIZE);
 
 wire stb_valid;
-assign stb_valid = wb_cyc_i && wb_stb_i;
+assign stb_valid = wb_cyc_i && wb_stb_i && !wb_ack_o;
 
 reg [DW-1:0] memory[SIZE-1:0];
 always @(posedge wb_clk_i) begin

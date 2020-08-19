@@ -1,6 +1,6 @@
 
 CROSS_COMPILE ?= riscv64-unknown-elf-
-CFLAGS = -march=rv32i -mabi=ilp32
+CFLAGS = -O2 -march=rv32i -mabi=ilp32
 LDFLAGS = $(CFLAGS) -Wl,-Bstatic,-T,firmware.lds -nostdlib
 
 OBJS = start.o main.o

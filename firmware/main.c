@@ -9,7 +9,7 @@ int main(void)
     static uint8_t val = 0xff;
     int i;
 
-    for (i = 0; i < 0; i++) {
+    for (i = 0; i < LED_PWM_COUNT; i++) {
         ledpwm[i] = val;
         val >>= 2;
     }

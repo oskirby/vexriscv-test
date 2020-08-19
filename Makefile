@@ -12,6 +12,8 @@ SOURCES = \
 	lib/picorv32.v \
 	lib/skidbuffer.v \
 	lib/wbc2pipeline.v \
+	lib/wbcdecoder.v \
+	lib/wbcxbar.v \
 	lib/wbxbar.v \
 	wbleds.v \
 	wbsram.v \
