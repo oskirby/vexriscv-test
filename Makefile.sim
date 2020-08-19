@@ -1,0 +1,27 @@
+##
+## Build and simulate the project with verilator
+##
+include common.mk
+
+BASENAME ?= vextest
+SIMTOP = $(BASENAME)_sim
+
+all: $(SIMTOP)
+
+# Simulation Build Rules.
+firmware.mem:
+	make -C firmware firmware.bin
+	hexdump  -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
+
+$(SIMTOP): $(SIMTOP).v $(SOURCES) $(SIMTOP).cpp firmware.mem
+	verilator --trace --top-module $(SIMTOP) -cc $(filter %.v,$^) -Wno-fatal --exe $(SIMTOP).cpp
+	make -C obj_dir -f V$(SIMTOP).mk
+
+# Cleanup Rules
+clean:
+	make -C firmware clean
+	rm -f $(SIMTOP) $(SIMTOP).vcd
+	rm -rf obj_dir/
+
+.SECONDARY:
+.PHONY: all clean

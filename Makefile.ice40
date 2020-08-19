@@ -1,70 +1,42 @@
 ##
-## Make and program TinyFPGA BX
+## Make the bitstream for iCE40 boards
 ##
-CROSS_COMPILE ?= riscv64-unknown-elf-
+include common.mk
 
-#BASENAME = vextest
-BASENAME = picotest
+BASENAME ?= vextest
 PROJTOP = $(BASENAME)_tbx
-SIMTOP = $(BASENAME)_sim
 
-SOURCES = \
-	lib/VexRiscv_Min.v \
-	lib/addrdecode.v \
-	lib/picorv32.v \
-	lib/skidbuffer.v \
-	lib/wbc2pipeline.v \
-	lib/wbxbar.v \
-	wbleds.v \
-	wbsram.v \
-	bootrom.v
-
-SRC = $(PROJTOP).v pll.v $(SOURCES)
+SRC = $(PROJTOP).v tinyfpga_pll.v $(SOURCES)
 
 PIN_DEF = pins.pcf
-
-DEVICE = lp8k
+DEVICE = --lp8k
 PACKAGE = cm81
 CLK_MHZ = 48
 
-all: $(PROJTOP).bit $(PROJTOP).hex $(PROJTOP).svf
-bootloader: $(PROJTOP).bit
+all: $(PROJTOP).bit
 
-pll.v:
+tinyfpga_pll.v:
 	icepll -i 16 -o $(CLK_MHZ) -m -f $@
 
 $(PROJTOP).json: $(SRC) firmware.mem
 	yosys -q -p 'synth_ice40 -top $(PROJTOP) -json $@' $(filter %.v,$^)
 
-%.asc: $(PIN_DEF) %.json 
-	nextpnr-ice40 --$(DEVICE) --opt-timing --package $(PACKAGE) --pcf $(PIN_DEF) --json $*.json --asc $@
+%.asc: %.json $(PIN_DEF)
+	nextpnr-ice40  --json $< --asc $@ $(DEVICE) --package $(PACKAGE) --pcf $(PIN_DEF) --opt-timing
 
 %.bit: %.asc
 	icepack $< $@
 
 # Firmware Build Rules.
-firmware.elf: firmware.s
-	$(CROSS_COMPILE)gcc $(CFLAGS) -march=rv32i -mabi=ilp32 -Wl,-Bstatic,-T,firmware.lds -nostdlib -o $@ $^
-
-firmware.bin: firmware.elf
-	$(CROSS_COMPILE)objcopy -O binary $^ $@
-
-firmware.mem: firmware.bin
-	hexdump  -e '"" 1/4 "%08x\n"' $^ > $@
-
-# Simulation Build Rules.
-$(SIMTOP): $(SIMTOP).v $(SOURCES) $(SIMTOP).cpp firmware.mem
-	verilator --trace --top-module $(SIMTOP) -cc $(filter %.v,$^) -Wno-fatal --exe $(SIMTOP).cpp
-	make -C obj_dir -f V$(SIMTOP).mk
-
-sim: $(SIMTOP)
+firmware.mem:
+	make -C firmware firmware.bin
+	hexdump  -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
 
 # Cleanup Rules
 clean:
+	make -C firmware clean
 	rm -f $(PROJTOP).json $(PROJTOP).svf $(PROJTOP).bit $(PROJTOP)_out.config $(PROJTOP).hex
-	rm -f firmware.elf firmware.bin firmware.mem
-	rm -f $(SIMTOP) $(SIMTOP).vcd
-	rm -rf obj_dir/
+	rm -f firmware.mem
 
 .SECONDARY:
-.PHONY: all bitstream synth dfu clean gui
+.PHONY: all clean

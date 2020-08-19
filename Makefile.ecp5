@@ -1,0 +1,43 @@
+##
+## Make the bitstream for ECP5 boards
+##
+include common.mk
+
+BASENAME ?= vextest
+PROJTOP = $(BASENAME)_lbone
+
+SRC = $(PROJTOP).v logicbone_pll.v $(SOURCES)
+
+PIN_DEF = logicbone-rev0.lpf
+DEVICE = --um5g-85k
+PACKAGE = CABGA381
+
+all: $(PROJTOP).bit $(PROJTOP).svf
+
+$(PROJTOP).json: $(SRC) firmware.mem
+	yosys -q -p 'synth_ecp5 -top $(PROJTOP) -json $@' $(filter %.v,$^)
+
+%_out.config: %.json $(PIN_DEF)
+	nextpnr-ecp5 --json $< --textcfg $@ $(DEVICE) --package $(PACKAGE) --lpf $(PIN_DEF)
+
+%.svf: %_out.config
+	ecppack --svf $@ $<
+
+%.bit: %_out.config
+	ecppack --compress --spimode qspi $< $@
+
+dfu: $(PROJTOP).bit
+	dfu-util -d 1d50:615d -a0 -D $<
+
+firmware.mem:
+	make -C firmware firmware.bin
+	hexdump  -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
+
+# Cleanup Rules
+clean:
+	make -C firmware clean
+	rm -f $(PROJTOP).json $(PROJTOP).svf $(PROJTOP).bit $(PROJTOP)_out.config
+	rm -f firmware.mem
+
+.SECONDARY:
+.PHONY: all clean dfu

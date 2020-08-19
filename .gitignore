@@ -1,0 +1,9 @@
+*.bit
+*.hex
+*.svf
+*_out.config
+*.asc
+*.json
+*.mem
+*.vcd
+tinyfpga_pll.v
