@@ -46,7 +46,7 @@ localparam M_GRANT_BITS = $clog2(NS+1);
 localparam M_GRANT_SIZE = (1 << M_GRANT_BITS);
 localparam M_GRANT_NONE = {(M_GRANT_BITS){1'b1}};
 
-localparam S_GRANT_BITS = $clog2(NS+1);
+localparam S_GRANT_BITS = $clog2(NM+1);
 localparam S_GRANT_SIZE = (1 << S_GRANT_BITS);
 localparam S_GRANT_NONE = {(S_GRANT_BITS){1'b1}};
 
@@ -138,22 +138,13 @@ generate
     end
 
     // The MxS arbiter
-    reg [NS-1:0] s_busy;
-    for (gS = 0; gS < NS; gS = gS + 1) begin
-        always @* begin
-            s_busy[gS] = 1'b0;
-            for (iM = 0; iM < NM; iM = iM + 1) begin
-                if (m_grant[iM] == gS) s_busy[gS] = 1'b1;
-            end
-        end
-    end
     always @(posedge i_clk) begin
         for (iM = 0; iM < NM; iM = iM + 1) begin
             if (!i_mcyc[iM]) begin
                 // Master is inactive, release the grant.
                 m_grant[iM] <= M_GRANT_NONE;
             end
-            else if (!s_busy[m_decode[iM]]) begin
+            else if (!o_scyc[m_decode[iM]]) begin
                 // Slave is inactive, acquire the grant.
                 m_grant[iM] <= m_decode[iM];
             end
