@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#define LED_PWM_BASE    (volatile uint32_t *)0x2000000
+#define LED_PWM_BASE    (volatile uint32_t *)0x20000000
 #define LED_PWM_COUNT   4
 
 int main(void)
