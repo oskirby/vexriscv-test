@@ -1,5 +1,5 @@
 module bootrom#(
-	parameter	AW = 32,
+    parameter   AW = 32,
     parameter   DW = 32,
     parameter   SIZE = 1024
 ) (

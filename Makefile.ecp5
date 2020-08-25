@@ -50,7 +50,7 @@ dfu: $(PROJTOP).bit
 
 firmware.mem:
 	make -C firmware firmware.bin
-	hexdump  -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
+	hexdump -v -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
 
 gui: $(PROJTOP).json $(PIN_DEF)
 	nextpnr-ecp5 --json $< $(DEVICE) --package $(PACKAGE) --lpf $(PIN_DEF) --gui

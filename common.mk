@@ -1,7 +1,7 @@
 
 
 SOURCES = \
-	lib/VexRiscv_Min.v \
+	lib/VexRiscv_MinRvc.v \
 	lib/addrdecode.v \
 	lib/picorv32.v \
 	lib/skidbuffer.v \

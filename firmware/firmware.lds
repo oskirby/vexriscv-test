@@ -4,6 +4,8 @@ MEMORY
     SRAM (rwx) : ORIGIN = 0x10000000, LENGTH = 4096
 }
 
+ENTRY(start)
+
 SECTIONS
 {
     /* Place program code directly into ROM */

@@ -11,7 +11,7 @@ all: $(SIMTOP)
 # Simulation Build Rules.
 firmware.mem:
 	make -C firmware firmware.bin
-	hexdump  -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
+	hexdump -v -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
 
 $(SIMTOP): $(SIMTOP).v $(SOURCES) $(SIMTOP).cpp firmware.mem
 	verilator --trace --top-module $(SIMTOP) -cc $(filter %.v,$^) -Wno-fatal --exe $(SIMTOP).cpp

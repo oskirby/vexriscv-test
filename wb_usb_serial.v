@@ -128,7 +128,7 @@ always @(posedge wb_clk_i) begin
         REG_USART_MCR : wb_dat_o <= {wb_dat_nop, r_modem_ctrl};
         REG_USART_LSR : wb_dat_o <= {wb_dat_nop, r_line_status};
         REG_USART_MSR : wb_dat_o <= {wb_dat_nop, r_modem_status};
-        REG_USART_SCRATCH : wb_dat_o <= {wb_dat_nop, scratch};
+        REG_USART_SCRATCH : wb_dat_o <= {wb_dat_nop, r_scratch};
         REG_USART_DLL : wb_dat_o <= {wb_dat_nop, r_divisor[7:0]};
         REG_USART_DLM : wb_dat_o <= {wb_dat_nop, r_divisor[15:8]};
         REG_USART_PLD : wb_dat_o <= {wb_dat_nop, r_prescaler};
@@ -144,7 +144,7 @@ always @(posedge wb_clk_i) begin
         REG_USART_FCR : r_fifo_ctrl  <= wb_dat_i[7:0];
         REG_USART_LCR : r_line_ctrl  <= wb_dat_i[7:0];
         REG_USART_MCR : r_modem_ctrl <= wb_dat_i[7:0];
-        REG_USART_SCRATCH : scratch  <= wb_dat_i[7:0];
+        REG_USART_SCRATCH : r_scratch   <= wb_dat_i[7:0];
         REG_USART_DLL : r_divisor[7:0]  <= wb_dat_i[7:0];
         REG_USART_DLM : r_divisor[15:8] <= wb_dat_i[7:0];
         REG_USART_PLD : r_prescaler     <= wb_dat_i[7:0];

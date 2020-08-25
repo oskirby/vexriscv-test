@@ -10,6 +10,7 @@
 .global _heap_start
 .global _stack_start
 .global main
+.global start
 
 start:
     # initialize the register file

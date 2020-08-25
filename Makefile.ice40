@@ -48,7 +48,7 @@ $(PROJTOP).json: $(SRC) firmware.mem
 # Firmware Build Rules.
 firmware.mem:
 	make -C firmware firmware.bin
-	hexdump  -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
+	hexdump -v -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
 
 gui: $(PROJTOP).json $(PIN_DEF)
 	nextpnr-ice40 --json $< $(DEVICE) --package $(PACKAGE) --pcf $(PIN_DEF) --opt-timing --gui
@@ -56,7 +56,7 @@ gui: $(PROJTOP).json $(PIN_DEF)
 # Cleanup Rules
 clean:
 	make -C firmware clean
-	rm -f $(PROJTOP).json $(PROJTOP).svf $(PROJTOP).bit $(PROJTOP)_out.config $(PROJTOP).hex
+	rm -f $(PROJTOP).json $(PROJTOP).svf $(PROJTOP).bit $(PROJTOP).asc $(PROJTOP).hex
 	rm -f firmware.mem
 
 .SECONDARY:
