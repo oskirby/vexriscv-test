@@ -2,6 +2,9 @@
 module vextest_tbx (
     input  pin_clk,
     output pin_led,
+    inout pin_usb_p,
+    input pin_usb_n,
+    output pin_pu,
     output [3:0] debug
 );
 
@@ -23,6 +26,65 @@ always @(posedge clk) begin
 end
 assign rst = (por_delay != 0);
 
+// Wishbone connected USB/Serial interface.
+wire usb_p_tx;
+wire usb_n_tx;
+wire usb_p_rx;
+wire usb_n_rx;
+wire usb_tx_en;
+wire dfu_detach;
+wire [3:0] usb_debug;
+
+wire [WB_ADDR_WIDTH-1:0] wb_serial_addr;
+wire [WB_DATA_WIDTH-1:0] wb_serial_rdata;
+wire [WB_DATA_WIDTH-1:0] wb_serial_wdata;
+wire                     wb_serial_we;
+wire [WB_SEL_WIDTH-1:0]  wb_serial_sel;
+wire                     wb_serial_ack;
+wire                     wb_serial_cyc;
+wire                     wb_serial_stb;
+
+// USB Serial Core.
+wb_usb_serial#(
+    .AW(WB_ADDR_WIDTH),
+    .DW(WB_DATA_WIDTH)
+) usb_serial(
+    .wb_clk_i(clk),
+    .wb_reset_i(rst),
+
+    // Wishbone bus.
+    .wb_adr_i(wb_serial_addr),
+    .wb_dat_i(wb_serial_wdata),
+    .wb_dat_o(wb_serial_rdata),
+    .wb_we_i(wb_serial_we),
+    .wb_sel_i(wb_serial_sel),
+    .wb_ack_o(wb_serial_ack),
+    .wb_cyc_i(wb_serial_cyc),
+    .wb_stb_i(wb_serial_stb),
+
+    // USB lines.
+    .usb_clk(clk),
+    .usb_p_tx(usb_p_tx),
+    .usb_n_tx(usb_n_tx),
+    .usb_p_rx(usb_p_rx),
+    .usb_n_rx(usb_n_rx),
+    .usb_tx_en(usb_tx_en),
+    
+    // DFU state and debug
+    .dfu_detach(dfu_detach),
+    .debug(usb_debug)
+);
+usb_phy_ice40 usb_phy(
+    .pin_usb_p(pin_usb_p),
+    .pin_usb_n(pin_usb_n),
+
+    .usb_p_tx(usb_p_tx),
+    .usb_n_tx(usb_n_tx),
+    .usb_p_rx(usb_p_rx),
+    .usb_n_rx(usb_n_rx),
+    .usb_tx_en(usb_tx_en)
+);
+assign pin_pu = 1'b1;
 
 // Wishbone connected LED driver.
 wire [WB_ADDR_WIDTH-1:0] wb_ledpwm_addr;
@@ -52,7 +114,7 @@ wbledpwm#(
 
     .leds(wb_ledpwm_output)
 );
-assign pin_led = ~wb_ledpwm_output[0];
+assign pin_led = wb_ledpwm_output[0];
 
 // Instantiate the boot ROM.
 wire [WB_ADDR_WIDTH-1:0] wb_bootrom_addr;
@@ -299,14 +361,15 @@ end else begin
     // Create the Wishbone crossbar.
     wbcxbar#(
         .NM(2), // One port each for instruction and data access from the CPU.
-        .NS(3), // One port for SRAM, boot ROM and PWM LED driver.
+        .NS(4), // One port for SRAM, boot ROM and PWM LED driver.
         .AW(WB_ADDR_WIDTH),
         .DW(WB_DATA_WIDTH),
         .MUXWIDTH(4),
         .SLAVE_MUX({
             { 4'h0 },  // Base address of the boot ROM.
             { 4'h1 },  // Base address of the SRAM.
-            { 4'h2 }   // Base address of the PWM driver.
+            { 4'h2 },  // Base address of the PWM driver.
+            { 4'h3 }   // Base address of the USB Serial interface.
         })
     ) vexcrossbar (
         .i_clk(clk),
@@ -324,15 +387,15 @@ end else begin
         .o_mdata ({wbc_ibus_rdata, wbc_dbus_rdata}),
 
         // Crossbar Slave Ports.
-        .o_scyc  ({wb_bootrom_cyc,   wb_sram_cyc,   wb_ledpwm_cyc}),
-        .o_sstb  ({wb_bootrom_stb,   wb_sram_stb,   wb_ledpwm_stb}),
-        .o_swe   ({wb_bootrom_we,    wb_sram_we,    wb_ledpwm_we}),
-        .o_saddr ({wb_bootrom_addr,  wb_sram_addr,  wb_ledpwm_addr}),
-        .o_sdata ({wb_bootrom_wdata, wb_sram_wdata, wb_ledpwm_wdata}),
-        .o_ssel  ({wb_bootrom_sel,   wb_sram_sel,   wb_ledpwm_sel}),
-        .i_sack  ({wb_bootrom_ack,   wb_sram_ack,   wb_ledpwm_ack}),
-        .i_serr  ({1'b0,             1'b0,          1'b0}),
-        .i_sdata ({wb_bootrom_rdata, wb_sram_rdata, wb_ledpwm_rdata})
+        .o_scyc  ({wb_bootrom_cyc,   wb_sram_cyc,   wb_ledpwm_cyc,   wb_serial_cyc}),
+        .o_sstb  ({wb_bootrom_stb,   wb_sram_stb,   wb_ledpwm_stb,   wb_serial_stb}),
+        .o_swe   ({wb_bootrom_we,    wb_sram_we,    wb_ledpwm_we,    wb_serial_we}),
+        .o_saddr ({wb_bootrom_addr,  wb_sram_addr,  wb_ledpwm_addr,  wb_serial_addr}),
+        .o_sdata ({wb_bootrom_wdata, wb_sram_wdata, wb_ledpwm_wdata, wb_serial_wdata}),
+        .o_ssel  ({wb_bootrom_sel,   wb_sram_sel,   wb_ledpwm_sel,   wb_serial_sel}),
+        .i_sack  ({wb_bootrom_ack,   wb_sram_ack,   wb_ledpwm_ack,   wb_serial_ack}),
+        .i_serr  ({1'b0,             1'b0,          1'b0,            1'b0}),
+        .i_sdata ({wb_bootrom_rdata, wb_sram_rdata, wb_ledpwm_rdata, wb_serial_rdata})
     );
 end endgenerate
 

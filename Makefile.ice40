@@ -3,10 +3,28 @@
 ##
 include common.mk
 
+USBDIR = tinydfu-bootloader/usb
+USBSRCS = $(USBDIR)/edge_detect.v \
+          $(USBDIR)/strobe.v \
+          $(USBDIR)/usb_fs_in_arb.v \
+          $(USBDIR)/usb_fs_in_pe.v \
+          $(USBDIR)/usb_fs_out_arb.v \
+          $(USBDIR)/usb_fs_out_pe.v \
+          $(USBDIR)/usb_fs_pe.v \
+          $(USBDIR)/usb_fs_rx.v \
+          $(USBDIR)/usb_fs_tx_mux.v \
+          $(USBDIR)/usb_fs_tx.v \
+          $(USBDIR)/usb_string_rom.v \
+          $(USBDIR)/usb_serial_core.v \
+          $(USBDIR)/usb_serial_ctrl_ep.v \
+          $(USBDIR)/usb_uart_in_ep.v \
+          $(USBDIR)/usb_uart_out_ep.v \
+          $(USBDIR)/usb_phy_ice40.v
+
 BASENAME ?= vextest
 PROJTOP = $(BASENAME)_tbx
 
-SRC = $(PROJTOP).v tinyfpga_pll.v $(SOURCES)
+SRC = $(PROJTOP).v tinyfpga_pll.v wb_usb_serial.v $(SOURCES) $(USBSRCS)
 
 PIN_DEF = pins.pcf
 DEVICE = --lp8k
@@ -32,6 +50,9 @@ firmware.mem:
 	make -C firmware firmware.bin
 	hexdump  -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
 
+gui: $(PROJTOP).json $(PIN_DEF)
+	nextpnr-ice40 --json $< $(DEVICE) --package $(PACKAGE) --pcf $(PIN_DEF) --opt-timing --gui
+
 # Cleanup Rules
 clean:
 	make -C firmware clean
@@ -39,4 +60,4 @@ clean:
 	rm -f firmware.mem
 
 .SECONDARY:
-.PHONY: all clean
+.PHONY: all clean gui
