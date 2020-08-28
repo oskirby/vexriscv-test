@@ -27,7 +27,7 @@ struct serial_regmap {
     serial_reg_t    msr;    // Modem Status Register.
     serial_reg_t    scratch; // Scratch Value Register.
 } __attribute__((packed));
-#define SERIAL ((volatile struct serial_regmap *)0x30000000)
+#define SERIAL ((volatile struct serial_regmap *)0x40000000)
 
 static void serial_putc(int ch)
 {
@@ -41,16 +41,50 @@ void _putchar(char ch)
     SERIAL->thr = ch;
 }
 
-static void serial_puthex(int value)
+struct spi_regmap {
+    uint32_t control;
+    uint32_t status;
+    uint32_t transmit;
+    uint32_t receive;
+};
+
+static uint32_t
+spiflash_getword(uint32_t addr)
 {
-    int nibble = value & 0xF;
-    if (value >= 16) {
-        serial_puthex(value >> 4);
-    } else {
-        serial_putc('0');
-        serial_putc('x');
+    volatile const uint32_t *qspi = (volatile const uint32_t *)0x30000000;
+    return qspi[addr];
+}
+
+static void memtest(void)
+{
+    volatile uint32_t *sram = (volatile uint32_t *)0x10000004;
+    const int size = 64;
+    uint32_t seed = 5381;
+    int i;
+
+    /* Test reading from SPI flash. */
+    (void)spiflash_getword(0x1234);
+    (void)spiflash_getword(0x1235);
+    (void)spiflash_getword(0x1236);
+    (void)spiflash_getword(0xDEAD);
+    (void)spiflash_getword(0xBEEF);
+
+    /* Write memory */
+    for (i = 0; i < size; i++) {
+        sram[i] = seed;
+        /* Quick and dirty hash algorithm. */
+        seed = (seed << 5) + seed + i;
     }
-    serial_putc(nibble >= 10 ? ('A'+nibble-10) : ('0'+nibble));
+
+    /* Check memory. */
+    seed = 5381;
+    for (i = 0; i < size; i++) {
+        if (sram[i] != seed) {
+            printf("memtest error: addr=0x%08x expected=0x%08x got=0x%08x\n",
+                (uint32_t)(uintptr_t)&sram[i], seed, sram[i]);
+        }
+        seed = (seed << 5) + seed + i;
+    }
 }
 
 int main(void)
@@ -61,11 +95,15 @@ int main(void)
     char ch = 'A';
     int i;
     int count = 0;
+    
+    memtest();
 
     for (i = 0; i < LED_PWM_COUNT; i++) {
         ledpwm[i] = val;
         val >>= 2;
     }
+ 
+    printf("Hello World!\n");
 
     /* And finally - the main loop. */
     while (1) {
@@ -77,7 +115,6 @@ int main(void)
             count++;
 #if 1
             if ((count % 64) == 0) {
-                printf("Hello World %d\n", count);
             }
 #else
             serial_putc(ch);

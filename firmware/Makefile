@@ -18,7 +18,7 @@ OBJS = start.o main.o printf.o
 	$(CROSS_COMPILE)objcopy -O binary $^ $@
 
 %.mem: %.bin
-	hexdump  -e '"" 1/4 "%08x\n"' $^ > $@
+	hexdump -v -e '"" 1/4 "%08x\n"' $^ > $@
 
 # Firmware Build Rules.
 firmware.elf: $(OBJS)

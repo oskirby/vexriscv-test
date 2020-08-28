@@ -5,7 +5,13 @@ module vextest_lbone (
 
     inout usb_ufp_dp,
     input usb_ufp_dm,
-    output usb_ufp_pull
+    output usb_ufp_pull,
+
+    output flash_csel,
+    inout flash_mosi,
+    inout flash_miso,
+    inout flash_d2,
+    inout flash_d3
 );
 
 localparam WB_DATA_WIDTH = 32;
@@ -25,6 +31,19 @@ always @(posedge clk) begin
     if (clk_locked && por_delay != 0) por_delay <= por_delay - 1;
 end
 assign rst = (por_delay != 0);
+
+// SPI Pinouts
+wire spi_clk;
+wire spi_csel;
+wire [3:0] spi_dir;
+wire [3:0] spi_din;
+wire [3:0] spi_dout;
+USRMCLK usr_mclk(.USRMCLKI(spi_clk), .USRMCLKTS(1'b0));
+BB spi_io_d0(.I(spi_dout[0]), .T(~spi_dir[0]), .O(spi_din[0]), .B(flash_mosi));
+BB spi_io_d1(.I(spi_dout[1]), .T(~spi_dir[1]), .O(spi_din[1]), .B(flash_miso));
+BB spi_io_d2(.I(spi_dout[2]), .T(~spi_dir[2]), .O(spi_din[2]), .B(flash_d2));
+BB spi_io_d3(.I(spi_dout[3]), .T(~spi_dir[3]), .O(spi_din[3]), .B(flash_d3));
+assign flash_csel = spi_csel;
 
 // Wishbone connected USB/Serial interface.
 wire usb_p_tx;
@@ -85,7 +104,6 @@ usb_phy_ecp5 usb_phy(
     .usb_tx_en(usb_tx_en)
 );
 assign usb_ufp_pull = 1'b1;
-assign led = ~usb_debug;
 
 // Wishbone connected LED driver.
 wire [WB_ADDR_WIDTH-1:0] wb_ledpwm_addr;
@@ -115,7 +133,38 @@ wbledpwm#(
 
     .leds(wb_ledpwm_output)
 );
-//assign led = ~wb_ledpwm_output;
+assign led = ~wb_ledpwm_output;
+
+// Wishbone connected SPI flash.
+wire [WB_ADDR_WIDTH-1:0] wb_spi_addr;
+wire [WB_DATA_WIDTH-1:0] wb_spi_rdata;
+wire [WB_DATA_WIDTH-1:0] wb_spi_wdata;
+wire                     wb_spi_we;
+wire [WB_SEL_WIDTH-1:0]  wb_spi_sel;
+wire                     wb_spi_ack;
+wire                     wb_spi_cyc;
+wire                     wb_spi_stb;
+wb_qspi_flash#(
+    .AW(WB_ADDR_WIDTH),
+    .DW(WB_DATA_WIDTH)
+) vexspi(
+    .wb_clk_i(clk),
+    .wb_reset_i(rst),
+    .wb_adr_i(wb_spi_addr),
+    .wb_dat_i(wb_spi_wdata),
+    .wb_dat_o(wb_spi_rdata),
+    .wb_we_i(wb_spi_we),
+    .wb_sel_i(wb_spi_sel),
+    .wb_ack_o(wb_spi_ack),
+    .wb_cyc_i(wb_spi_cyc),
+    .wb_stb_i(wb_spi_stb),
+
+    .spi_clk(spi_clk),
+    .spi_sel(spi_csel),
+    .spi_d_out(spi_dout),
+    .spi_d_in(spi_din),
+    .spi_d_dir(spi_dir)
+);
 
 // Instantiate the boot ROM.
 wire [WB_ADDR_WIDTH-1:0] wb_bootrom_addr;
@@ -230,174 +279,45 @@ VexRiscv vexcore(
     .reset(rst)
 );
 
-generate if (0) begin
-    // Convert the VexRiscV from classic to pipelined wishbone.
-    wire [WB_ADDR_WIDTH-1:0] wb_ibus_addr;
-    wire [WB_DATA_WIDTH-1:0] wb_ibus_rdata;
-    wire [WB_DATA_WIDTH-1:0] wb_ibus_wdata;
-    wire                     wb_ibus_we;
-    wire [WB_SEL_WIDTH-1:0]  wb_ibus_sel;
-    wire                     wb_ibus_ack;
-    wire                     wb_ibus_cyc;
-    wire                     wb_ibus_stb;
-    wire                     wb_ibus_err;
-    wire                     wb_ibus_stall;
-    wbc2pipeline#(
-        .AW(WB_ADDR_WIDTH),
-        .DW(WB_DATA_WIDTH)
-    ) vexibus_pipelined(
-        .i_clk(clk),
-        .i_reset(rst),
+// Create the Wishbone crossbar.
+wbcxbar#(
+    .NM(2), // One port each for instruction and data access from the CPU.
+    .NS(5), // One port for SRAM, boot ROM and PWM LED driver.
+    .AW(WB_ADDR_WIDTH),
+    .DW(WB_DATA_WIDTH),
+    .MUXWIDTH(4),
+    .SLAVE_MUX({
+        { 4'h0 },  // Base address of the boot ROM.
+        { 4'h1 },  // Base address of the SRAM.
+        { 4'h2 },  // Base address of the PWM driver.
+        { 4'h3 },  // Base address of QSPI Flash.
+        { 4'h4 }   // Base address of the USB Serial interface.
+    })
+) vexcrossbar (
+    .i_clk(clk),
+    .i_reset(rst),
 
-        .i_mcyc(wbc_ibus_cyc),
-        .i_mstb(wbc_ibus_stb),
-        .i_mwe(wbc_ibus_we),
-        .i_maddr(wbc_ibus_addr),
-        .i_mdata(wbc_ibus_wdata),
-        .i_msel(wbc_ibus_sel),
-        .o_mack(wbc_ibus_ack),
-        .o_mdata(wbc_ibus_rdata),
-        .o_merr(wbc_ibus_err),
-        .i_mcti(wbc_ibus_cti),
-        .i_mbte(wbc_ibus_bte),
+    // Crossbar Master Ports.
+    .i_mcyc  ({wbc_ibus_cyc,   wbc_dbus_cyc}),
+    .i_mstb  ({wbc_ibus_stb,   wbc_dbus_cyc}),
+    .i_mwe   ({wbc_ibus_we,    wbc_dbus_we}),
+    .i_maddr ({wbc_ibus_addr,  wbc_dbus_addr}),
+    .i_mdata ({wbc_ibus_wdata, wbc_dbus_wdata}),
+    .i_msel  ({wbc_ibus_sel,   wbc_dbus_sel}),
+    .o_mack  ({wbc_ibus_ack,   wbc_dbus_ack}),
+    .o_merr  ({wbc_ibus_err,   wbc_dbus_err}),
+    .o_mdata ({wbc_ibus_rdata, wbc_dbus_rdata}),
 
-        .o_scyc(wb_ibus_cyc),
-        .o_sstb(wb_ibus_stb),
-        .o_swe(wb_ibus_we),
-        .o_saddr(wb_ibus_addr),
-        .o_sdata(wb_ibus_wdata),
-        .o_ssel(wb_ibus_sel),
-        .i_sstall(wb_ibus_stall),
-        .i_sack(wb_ibus_ack),
-        .i_sdata(wb_ibus_rdata),
-        .i_serr(wb_ibus_err)
-    );
-
-    wire [WB_ADDR_WIDTH-1:0] wb_dbus_addr;
-    wire [WB_DATA_WIDTH-1:0] wb_dbus_rdata;
-    wire [WB_DATA_WIDTH-1:0] wb_dbus_wdata;
-    wire                     wb_dbus_we;
-    wire [WB_SEL_WIDTH-1:0]  wb_dbus_sel;
-    wire                     wb_dbus_ack;
-    wire                     wb_dbus_cyc;
-    wire                     wb_dbus_stb;
-    wire                     wb_dbus_err;
-    wire                     wb_dbus_stall;
-    wbc2pipeline#(
-        .AW(WB_ADDR_WIDTH),
-        .DW(WB_DATA_WIDTH)
-    ) vexdbus_pipelined(
-        .i_clk(clk),
-        .i_reset(rst),
-
-        .i_mcyc(wbc_dbus_cyc),
-        .i_mstb(wbc_dbus_stb),
-        .i_mwe(wbc_dbus_we),
-        .i_maddr(wbc_dbus_addr),
-        .i_mdata(wbc_dbus_wdata),
-        .i_msel(wbc_dbus_sel),
-        .o_mack(wbc_dbus_ack),
-        .o_mdata(wbc_dbus_rdata),
-        .o_merr(wbc_dbus_err),
-        .i_mcti(wbc_dbus_cti),
-        .i_mbte(wbc_dbus_bte),
-
-        .o_scyc(wb_dbus_cyc),
-        .o_sstb(wb_dbus_stb),
-        .o_swe(wb_dbus_we),
-        .o_saddr(wb_dbus_addr),
-        .o_sdata(wb_dbus_wdata),
-        .o_ssel(wb_dbus_sel),
-        .i_sstall(wb_dbus_stall),
-        .i_sack(wb_dbus_ack),
-        .i_sdata(wb_dbus_rdata),
-        .i_serr(wb_dbus_err)
-    );
-
-    // Create the Wishbone crossbar.
-    wbxbar#(
-        .NM(2), // One port each for instruction and data access from the CPU.
-        .NS(3), // One port for SRAM, boot ROM and PWM LED driver.
-        .AW(WB_ADDR_WIDTH),
-        .DW(WB_DATA_WIDTH),
-        .SLAVE_ADDR({
-            { 4'h0, {(WB_ADDR_WIDTH-4){1'b0}}},  // Base address of the boot ROM.
-            { 4'h1, {(WB_ADDR_WIDTH-4){1'b0}}},  // Base address of the SRAM.
-            { 4'h2, {(WB_ADDR_WIDTH-4){1'b0}}}   // Base address of the PWM driver.
-        }),
-        .SLAVE_MASK({
-            { 4'b1111, {(WB_ADDR_WIDTH-4){1'b0}}},  // Address mask of the boot ROM.
-            { 4'b1111, {(WB_ADDR_WIDTH-4){1'b0}}},  // Address mask of the SRAM.
-            { 4'b1111, {(WB_ADDR_WIDTH-4){1'b0}}}   // Address mask of the PWM driver.
-        })
-    ) vexcrossbar (
-        .i_clk(clk),
-        .i_reset(rst),
-
-        // Crossbar Master Ports.
-        .i_mcyc  ({wb_ibus_cyc,   wb_dbus_cyc}),
-        .i_mstb  ({wb_ibus_stb,   wb_dbus_cyc}),
-        .i_mwe   ({wb_ibus_we,    wb_dbus_we}),
-        .i_maddr ({wb_ibus_addr,  wb_dbus_addr}),
-        .i_mdata ({wb_ibus_wdata, wb_dbus_wdata}),
-        .i_msel  ({wb_ibus_sel,   wb_dbus_sel}),
-        .o_mstall({wb_ibus_stall, wb_dbus_stall}),
-        .o_mack  ({wb_ibus_ack,   wb_dbus_ack}),
-        .o_merr  ({wb_ibus_err,   wb_dbus_err}),
-        .o_mdata ({wb_ibus_rdata, wb_dbus_rdata}),
-
-        // Crossbar Slave Ports.
-        .o_scyc  ({wb_bootrom_cyc,   wb_sram_cyc,   wb_ledpwm_cyc}),
-        .o_sstb  ({wb_bootrom_stb,   wb_sram_stb,   wb_ledpwm_stb}),
-        .o_swe   ({wb_bootrom_we,    wb_sram_we,    wb_ledpwm_we}),
-        .o_saddr ({wb_bootrom_addr,  wb_sram_addr,  wb_ledpwm_addr}),
-        .o_sdata ({wb_bootrom_wdata, wb_sram_wdata, wb_ledpwm_wdata}),
-        .o_ssel  ({wb_bootrom_sel,   wb_sram_sel,   wb_ledpwm_sel}),
-        .i_sstall({1'b0,             1'b0,          1'b0}),
-        .i_sack  ({wb_bootrom_ack,   wb_sram_ack,   wb_ledpwm_ack}),
-        .i_serr  ({1'b0,             1'b0,          1'b0}),
-        .i_sdata ({wb_bootrom_rdata, wb_sram_rdata, wb_ledpwm_rdata})
-    );
-end else begin
-    // Create the Wishbone crossbar.
-    wbcxbar#(
-        .NM(2), // One port each for instruction and data access from the CPU.
-        .NS(4), // One port for SRAM, boot ROM and PWM LED driver.
-        .AW(WB_ADDR_WIDTH),
-        .DW(WB_DATA_WIDTH),
-        .MUXWIDTH(4),
-        .SLAVE_MUX({
-            { 4'h0 },  // Base address of the boot ROM.
-            { 4'h1 },  // Base address of the SRAM.
-            { 4'h2 },  // Base address of the PWM driver.
-            { 4'h3 }   // Base address of the USB Serial interface.
-        })
-    ) vexcrossbar (
-        .i_clk(clk),
-        .i_reset(rst),
-
-        // Crossbar Master Ports.
-        .i_mcyc  ({wbc_ibus_cyc,   wbc_dbus_cyc}),
-        .i_mstb  ({wbc_ibus_stb,   wbc_dbus_cyc}),
-        .i_mwe   ({wbc_ibus_we,    wbc_dbus_we}),
-        .i_maddr ({wbc_ibus_addr,  wbc_dbus_addr}),
-        .i_mdata ({wbc_ibus_wdata, wbc_dbus_wdata}),
-        .i_msel  ({wbc_ibus_sel,   wbc_dbus_sel}),
-        .o_mack  ({wbc_ibus_ack,   wbc_dbus_ack}),
-        .o_merr  ({wbc_ibus_err,   wbc_dbus_err}),
-        .o_mdata ({wbc_ibus_rdata, wbc_dbus_rdata}),
-
-        // Crossbar Slave Ports.
-        .o_scyc  ({wb_bootrom_cyc,   wb_sram_cyc,   wb_ledpwm_cyc,   wb_serial_cyc}),
-        .o_sstb  ({wb_bootrom_stb,   wb_sram_stb,   wb_ledpwm_stb,   wb_serial_stb}),
-        .o_swe   ({wb_bootrom_we,    wb_sram_we,    wb_ledpwm_we,    wb_serial_we}),
-        .o_saddr ({wb_bootrom_addr,  wb_sram_addr,  wb_ledpwm_addr,  wb_serial_addr}),
-        .o_sdata ({wb_bootrom_wdata, wb_sram_wdata, wb_ledpwm_wdata, wb_serial_wdata}),
-        .o_ssel  ({wb_bootrom_sel,   wb_sram_sel,   wb_ledpwm_sel,   wb_serial_sel}),
-        .i_sack  ({wb_bootrom_ack,   wb_sram_ack,   wb_ledpwm_ack,   wb_serial_ack}),
-        .i_serr  ({1'b0,             1'b0,          1'b0,            1'b0}),
-        .i_sdata ({wb_bootrom_rdata, wb_sram_rdata, wb_ledpwm_rdata, wb_serial_rdata})
-    );
-end endgenerate
+    // Crossbar Slave Ports.
+    .o_scyc  ({wb_bootrom_cyc,   wb_sram_cyc,   wb_ledpwm_cyc,   wb_spi_cyc,   wb_serial_cyc}),
+    .o_sstb  ({wb_bootrom_stb,   wb_sram_stb,   wb_ledpwm_stb,   wb_spi_stb,   wb_serial_stb}),
+    .o_swe   ({wb_bootrom_we,    wb_sram_we,    wb_ledpwm_we,    wb_spi_wei,   wb_serial_we}),
+    .o_saddr ({wb_bootrom_addr,  wb_sram_addr,  wb_ledpwm_addr,  wb_spi_addr,  wb_serial_addr}),
+    .o_sdata ({wb_bootrom_wdata, wb_sram_wdata, wb_ledpwm_wdata, wb_spi_wdata, wb_serial_wdata}),
+    .o_ssel  ({wb_bootrom_sel,   wb_sram_sel,   wb_ledpwm_sel,   wb_spi_sel,   wb_serial_sel}),
+    .i_sack  ({wb_bootrom_ack,   wb_sram_ack,   wb_ledpwm_ack,   wb_spi_ack,   wb_serial_ack}),
+    .i_serr  ({1'b0,             1'b0,          1'b0,            1'b0,         1'b0}),
+    .i_sdata ({wb_bootrom_rdata, wb_sram_rdata, wb_ledpwm_rdata, wb_spi_rdata, wb_serial_rdata})
+);
 
 endmodule

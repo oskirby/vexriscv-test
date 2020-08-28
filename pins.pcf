@@ -4,11 +4,13 @@ set_io pin_clk   B2
 set_io pin_usb_p B4
 set_io pin_usb_n A4
 set_io pin_pu    A3
-set_io -nowarn pin_16_cs F7
-set_io -nowarn pin_15_sck G7
-set_io -nowarn pin_14_mosi G6
-set_io -nowarn pin_17_miso H7
 
+set_io -nowarn pin_csel F7
+set_io -nowarn pin_sck  G7
+set_io -nowarn pin_mosi G6
+set_io -nowarn pin_miso H7
+set_io -nowarn pin_wp   H4
+set_io -nowarn pin_hold J8
 
 ## Debug pins
 set_io --warn-no-port debug[0] H9 # Pin_14

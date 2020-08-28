@@ -5,6 +5,10 @@ include common.mk
 
 BASENAME ?= vextest
 SIMTOP = $(BASENAME)_sim
+SIMSRC  = $(SIMTOP).v
+SIMSRC += wb_spram_256k.v
+SIMSRC += wb_sim_serial.v
+SIMSRC += lib/ice40_cells_sim.v
 
 all: $(SIMTOP)
 
@@ -13,7 +17,7 @@ firmware.mem:
 	make -C firmware firmware.bin
 	hexdump -v -e '"" 1/4 "%08x\n"' firmware/firmware.bin > $@
 
-$(SIMTOP): $(SIMTOP).v $(SOURCES) $(SIMTOP).cpp firmware.mem
+$(SIMTOP): $(SIMSRC) $(SOURCES) $(SIMTOP).cpp firmware.mem
 	verilator --trace --top-module $(SIMTOP) -cc $(filter %.v,$^) -Wno-fatal --exe $(SIMTOP).cpp
 	make -C obj_dir -f V$(SIMTOP).mk
 

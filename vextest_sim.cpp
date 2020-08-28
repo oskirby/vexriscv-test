@@ -53,8 +53,12 @@ public:
 		m_core->eval();
 		if (m_trace) m_trace->dump(10*m_tickcount);
 
+		// Handle UART output.
+		if (m_core->uart_valid) fputc(m_core->uart_data, stdout);
+
 		// Simulate the falling edge.
 		m_core->clk = 0;
+		m_core->spi_din = (m_tickcount & 0xF);
 		m_core->eval();
 		if (m_trace) {
 			m_trace->dump(10*m_tickcount+5);
